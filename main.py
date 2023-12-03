@@ -104,7 +104,16 @@ def main():
         loss="sparse_categorical_crossentropy",
         metrics=["accuracy"],
     )
-    transformer.fit(train_ds, epochs=30, validation_data=val_ds, callbacks=[])
+    callback = [callbacks.EarlyStopping(
+        monitor="val_loss",
+        min_delta=0.001,
+        patience=1,
+        mode="auto",
+        baseline=None,
+        restore_best_weights=True,
+        start_from_epoch=0,
+    )]
+    transformer.fit(train_ds, epochs=30, validation_data=val_ds, callbacks=callback)
     translate()
 
 
