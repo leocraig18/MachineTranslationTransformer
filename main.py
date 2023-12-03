@@ -5,6 +5,8 @@ import string
 import re
 from tensorflow import keras
 from keras import layers, callbacks
+from translate import translate
+
 
 def main():
     def load_data():
@@ -31,12 +33,10 @@ def main():
     strip_chars = strip_chars.replace("[", "")
     strip_chars = strip_chars.replace("]", "")
 
-
     def custom_standardization(input_string):
         lowercase = tf.strings.lower(input_string)
         return tf.strings.regex_replace(
             lowercase, f"[{re.escape(strip_chars)}]", "")
-
 
     vocab_size = 15000
     sequence_length = 20
@@ -61,7 +61,6 @@ def main():
 
     batch_size = 64
 
-
     def format_dataset(eng, spa):
         eng = source_vectorization(eng)
         spa = target_vectorization(spa)
@@ -69,7 +68,6 @@ def main():
             "english": eng,
             "spanish": spa[:, :-1],
         }, spa[:, 1:])
-
 
     def make_dataset(pairs):
         eng_texts, spa_texts = zip(*pairs)
@@ -80,7 +78,6 @@ def main():
         dataset = dataset.map(format_dataset, num_parallel_calls=4)
         return dataset.shuffle(2048).prefetch(16).cache()
 
-
     train_ds = make_dataset(train_pairs)
     val_ds = make_dataset(val_pairs)
 
@@ -89,24 +86,27 @@ def main():
     num_heads = 8
 
     encoder_inputs = keras.Input(shape=(None,), dtype='int64', name='english')
-    x = PositionalEmbedding(sequence_length, vocab_size, embed_dim)(encoder_inputs)
+    x = PositionalEmbedding(sequence_length, vocab_size,
+                            embed_dim)(encoder_inputs)
     encoder_outputs = TransformerEncoder(embed_dim, dense_dim, num_heads)(x)
 
     decoder_inputs = keras.Input(shape=(None,), dtype="int64", name="spanish")
-    x = PositionalEmbedding(sequence_length, vocab_size, embed_dim)(decoder_inputs)
+    x = PositionalEmbedding(sequence_length, vocab_size,
+                            embed_dim)(decoder_inputs)
     x = TransformerDecoder(embed_dim, dense_dim, num_heads)(x, encoder_outputs)
     x = layers.Dropout(0.5)(x)
     decoder_outputs = layers.Dense(vocab_size, activation='softmax')(x)
-    transformer = keras.Model([encoder_inputs, decoder_inputs], decoder_outputs)
+    transformer = keras.Model(
+        [encoder_inputs, decoder_inputs], decoder_outputs)
 
     transformer.compile(
         optimizer="rmsprop",
         loss="sparse_categorical_crossentropy",
         metrics=["accuracy"],
-        )
+    )
     transformer.fit(train_ds, epochs=30, validation_data=val_ds, callbacks=[])
+    translate()
+
 
 if __name__ == '__main__':
     main()
-
-
